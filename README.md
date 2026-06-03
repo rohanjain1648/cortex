@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&pause=1000&color=F72C5B&width=435&lines=Cortex;Social+Data+Ingestion;Vector+Knowledge+Base;RAG+Chat+Interface" alt="Typing SVG" />
+  <img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&size=40&pause=1000&color=3B82F6&width=800&height=60&lines=Cortex;Social+Data+Ingestion;Vector+Knowledge+Base;RAG+Chat+Interface" alt="Typing SVG" />
 </div>
 
 > **End-to-end social data ingestion, vector knowledge base, and RAG chat interface.**
