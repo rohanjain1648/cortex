@@ -6,14 +6,17 @@ import tempfile
 import uuid
 import zipfile
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .chunker import chunk_content
+from .config import settings
 from .embedder import _load_model, embed_chunks_async
 from .parsers.base import BaseParser
 from .parsers.instagram import InstagramParser
@@ -32,7 +35,7 @@ ingestion_jobs: dict[str, dict] = {}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Warming up embedding model (may download ~90MB on first run)...")
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, _load_model)
     logger.info("Ready.")
     yield
@@ -42,7 +45,7 @@ app = FastAPI(title="Cortex API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=[o.strip() for o in settings.cors_origins.split(",") if o.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -72,6 +75,9 @@ def reset_kb():
     return {"message": "Knowledge base reset"}
 
 
+_MAX_UPLOAD_BYTES = 250 * 1024 * 1024  # 250 MB
+
+
 @app.post("/api/ingest")
 async def ingest(
     background_tasks: BackgroundTasks,
@@ -79,6 +85,10 @@ async def ingest(
     source_hint: Optional[str] = Form(None),
 ):
     content = await file.read()
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large. Maximum upload size is 250 MB.")
+    if not content:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
     job_id = str(uuid.uuid4())[:8]
     ingestion_jobs[job_id] = {"status": "pending", "progress": 0, "message": "Queued"}
     background_tasks.add_task(_run_ingestion, job_id, content, file.filename or "upload.zip")
@@ -146,6 +156,10 @@ async def _run_ingestion(job_id: str, content: bytes, filename: str) -> None:
 
         all_chunks = [chunk for item in parsed for chunk in chunk_content(item)]
 
+        if not all_chunks:
+            job.update({"status": "error", "message": "No embeddable text found after chunking. Check that the export contains written content."})
+            return
+
         job.update({"progress": 40, "message": f"{len(all_chunks)} chunks created. Embedding..."})
 
         def on_progress(pct: int):
@@ -168,3 +182,19 @@ async def _run_ingestion(job_id: str, content: bytes, filename: str) -> None:
     except Exception as e:
         logger.exception(f"Ingestion job {job_id} failed")
         job.update({"status": "error", "message": str(e)})
+
+
+# ── Serve built frontend (production) ────────────────────────────────────────
+# Only mounted when `frontend/dist` exists (i.e. after `npm run build`).
+# API routes defined above always take precedence over this catch-all.
+_DIST = Path(__file__).parent.parent / "frontend" / "dist"
+
+if _DIST.exists():
+    _assets = _DIST / "assets"
+    if _assets.exists():
+        app.mount("/assets", StaticFiles(directory=str(_assets)), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def _spa_fallback(full_path: str):
+        fp = _DIST / full_path
+        return FileResponse(str(fp) if fp.is_file() else str(_DIST / "index.html"))

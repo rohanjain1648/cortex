@@ -35,7 +35,7 @@ def chunk_content(content: ParsedContent) -> list[Chunk]:
     if content.content_type in _ATOMIC_TYPES or len(text) <= MAX_CHUNK_CHARS:
         return [_make_chunk(content, text, 0, 1, ts_str)]
 
-    raw_chunks = _split_text(text)
+    raw_chunks = _split_text(text) or [text]  # fallback: keep full text rather than drop it
     n = len(raw_chunks)
     return [_make_chunk(content, chunk, i, n, ts_str) for i, chunk in enumerate(raw_chunks)]
 

@@ -49,15 +49,21 @@ export default function UploadPanel({ onIngestComplete }: { onIngestComplete: ()
     setJobs((prev) => [...prev, { job_id, status: 'pending', progress: 0, message: 'Queued...' }])
 
     const poll = async () => {
-      const res = await fetch(`/api/ingest/${job_id}`)
-      const job: Job = await res.json()
-      setJobs((prev) => prev.map((j) => (j.job_id === job_id ? job : j)))
-      if (job.status === 'done') {
-        onIngestComplete()
-        return
-      }
-      if (job.status !== 'error') {
-        setTimeout(poll, 800)
+      try {
+        const res = await fetch(`/api/ingest/${job_id}`)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const job: Job = await res.json()
+        setJobs((prev) => prev.map((j) => (j.job_id === job_id ? job : j)))
+        if (job.status === 'done') {
+          onIngestComplete()
+          return
+        }
+        if (job.status !== 'error') {
+          setTimeout(poll, 800)
+        }
+      } catch {
+        // transient failure — retry with longer backoff
+        setTimeout(poll, 2500)
       }
     }
     setTimeout(poll, 1000)

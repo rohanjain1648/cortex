@@ -17,6 +17,9 @@ class Settings(BaseSettings):
 
     top_k: int = 6
 
+    # Comma-separated allowed origins; use * to allow all (fine when frontend is same-origin)
+    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

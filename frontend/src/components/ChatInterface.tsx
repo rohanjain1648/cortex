@@ -98,7 +98,7 @@ export default function ChatInterface() {
           ...msgs.slice(0, -1),
           {
             role: 'assistant' as const,
-            content: 'Error: could not reach the backend. Make sure the server is running and ANTHROPIC_API_KEY is set.',
+            content: 'Error: could not reach the backend. Make sure the server is running and GEMINI_API_KEY is set in .env.',
           },
         ]
       })

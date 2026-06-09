@@ -86,6 +86,8 @@ class InstagramParser(BaseParser):
 
     @staticmethod
     def _extract_caption(item: dict) -> str:
+        if not isinstance(item, dict):
+            return ""
         if "media" in item:
             for media in item["media"]:
                 t = media.get("title", "").strip()

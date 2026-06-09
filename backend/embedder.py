@@ -33,7 +33,7 @@ async def embed_chunks_async(
     on_progress: Optional[Callable[[int], None]] = None,
 ) -> list[tuple[Chunk, list[float]]]:
     batch_size = batch_size or settings.embed_batch_size
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     results: list[tuple[Chunk, list[float]]] = []
     total = len(chunks)
 

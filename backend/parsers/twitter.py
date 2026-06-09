@@ -6,7 +6,8 @@ from typing import Optional
 
 from .base import BaseParser, ParsedContent
 
-_SIGNAL_FILES = {"tweets.js", "tweet.js"}
+# Matches tweets.js, tweet.js, tweets-part2.js, tweets-part3.js, etc.
+_TWEETS_RE = re.compile(r"^tweets?(-part\d+)?\.js$")
 
 
 class TwitterParser(BaseParser):
@@ -14,26 +15,27 @@ class TwitterParser(BaseParser):
 
     @classmethod
     def can_parse(cls, names: list[str]) -> bool:
-        return any(n.lower().rsplit("/", 1)[-1] in _SIGNAL_FILES for n in names)
+        return any(_TWEETS_RE.match(n.lower().rsplit("/", 1)[-1]) for n in names)
 
     def parse(self, zf: zipfile.ZipFile) -> list[ParsedContent]:
-        tweets_file = next(
-            (n for n in zf.namelist() if n.lower().rsplit("/", 1)[-1] in _SIGNAL_FILES),
-            None,
-        )
-        if not tweets_file:
+        tweet_files = [
+            n for n in zf.namelist()
+            if _TWEETS_RE.match(n.lower().rsplit("/", 1)[-1])
+        ]
+        if not tweet_files:
             return []
 
-        raw = zf.read(tweets_file).decode("utf-8")
-        raw = re.sub(r"^window\.[^=]+=\s*", "", raw.strip())
-
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            return []
+        all_entries: list[dict] = []
+        for tweets_file in tweet_files:
+            raw = zf.read(tweets_file).decode("utf-8")
+            raw = re.sub(r"^window\.[^=]+=\s*", "", raw.strip())
+            try:
+                all_entries.extend(json.loads(raw))
+            except json.JSONDecodeError:
+                continue
 
         items = []
-        for entry in data:
+        for entry in all_entries:
             tweet = entry.get("tweet", entry)
             text = tweet.get("full_text", tweet.get("text", "")).strip()
 

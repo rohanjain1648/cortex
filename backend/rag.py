@@ -25,7 +25,7 @@ class RAGPipeline:
         self._client = genai.Client(api_key=settings.gemini_api_key)
 
     async def stream_answer(self, query: str) -> AsyncIterator[dict]:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         embedding = await loop.run_in_executor(None, lambda: embed_texts([query])[0])
         results = self.store.query(embedding, top_k=settings.top_k)
