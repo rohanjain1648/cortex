@@ -22,7 +22,17 @@ If the context doesn't contain enough information to answer clearly, say so.\
 class RAGPipeline:
     def __init__(self, store: VectorStore):
         self.store = store
-        self._client = genai.Client(api_key=settings.gemini_api_key)
+        self._client: genai.Client | None = None
+
+    def _get_client(self) -> genai.Client:
+        if self._client is None:
+            if not settings.gemini_api_key:
+                raise ValueError(
+                    "GEMINI_API_KEY is not set. "
+                    "Add it as an environment variable in Railway → Variables."
+                )
+            self._client = genai.Client(api_key=settings.gemini_api_key)
+        return self._client
 
     async def stream_answer(self, query: str) -> AsyncIterator[dict]:
         loop = asyncio.get_running_loop()
@@ -49,7 +59,7 @@ class RAGPipeline:
             "Answer based on the context above, referencing specific content when relevant."
         )
 
-        async for chunk in await self._client.aio.models.generate_content_stream(
+        async for chunk in await self._get_client().aio.models.generate_content_stream(
             model=settings.gemini_model,
             contents=user_message,
             config=types.GenerateContentConfig(

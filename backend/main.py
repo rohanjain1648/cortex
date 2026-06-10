@@ -34,10 +34,18 @@ ingestion_jobs: dict[str, dict] = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Warming up embedding model (may download ~90MB on first run)...")
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, _load_model)
-    logger.info("Ready.")
+    # Warmup runs in the background so the server starts immediately
+    # and Railway's healthcheck passes without waiting for model load.
+    async def _warmup():
+        try:
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, _load_model)
+            logger.info("Embedding model ready.")
+        except Exception as exc:
+            logger.warning(f"Model warmup failed: {exc}")
+
+    asyncio.create_task(_warmup())
+    logger.info("Server started. Embedding model loading in background...")
     yield
 
 
